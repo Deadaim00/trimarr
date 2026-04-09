@@ -1,0 +1,27 @@
+services:
+  trimarr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trimarr:latest
+    container_name: trimarr
+    restart: unless-stopped
+    ports:
+      - "${TRIMARR_PORT:-7676}:3000"
+    environment:
+      NODE_ENV: production
+      TZ: ${TZ:-America/Chicago}
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      HOSTNAME: 0.0.0.0
+      TRIMARR_DB_PATH: /data/trimarr.sqlite
+      TRIMARR_INTERNAL_HOST: 127.0.0.1
+    volumes:
+      - ./data:/data
+      - ${MEDIA_ROOT:-/mnt/media}:/mnt/media
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s

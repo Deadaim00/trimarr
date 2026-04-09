@@ -1,0 +1,11 @@
+.next
+node_modules
+data
+npm-debug.log*
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.log
+tsconfig.tsbuildinfo
+.DS_Store
