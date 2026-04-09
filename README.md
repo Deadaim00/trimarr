@@ -9,6 +9,7 @@ It is built for Linux media libraries and focuses on:
 - scheduler support
 - queue, history, trash, logs, and statistics
 - Sonarr / Radarr webhook intake for newly imported files
+- SABnzbd post-processing trigger support for completed downloads
 
 ## What Trimarr Does
 
@@ -98,6 +99,37 @@ If custom headers are not available, you can use:
 ```text
 http://YOUR_HOST:7676/api/webhooks/arr?token=YOUR_KEY
 ```
+
+## SABnzbd Post-Processing
+
+Trimarr also ships with a SABnzbd-compatible post-processing script:
+
+- [`scripts/sabnzbd/trimarr-post-process.sh`](./scripts/sabnzbd/trimarr-post-process.sh)
+
+Recommended setup:
+
+1. Mount the script into your SAB container, or copy it into SAB's configured script directory.
+2. Make sure the paths SAB sees are the same library paths Trimarr can inspect.
+3. Set these environment variables for SAB:
+
+```text
+TRIMARR_URL=http://YOUR_TRIMARR_HOST:7676
+TRIMARR_API_KEY=YOUR_TRIMARR_WEBHOOK_KEY
+```
+
+4. In SABnzbd, choose `trimarr-post-process.sh` as the post-processing script for the category you want Trimarr to catch.
+
+The script sends the completed SAB path to:
+
+```text
+http://YOUR_HOST:7676/api/webhooks/sab
+```
+
+Behavior:
+
+- it expands completed release folders and queues any `.mkv` files found inside
+- it uses the same Webhooks toggle and API key as the Arr webhook endpoint
+- it does not fail the SAB job if Trimarr is temporarily unavailable
 
 ## Publishing This Repo To GitHub
 
