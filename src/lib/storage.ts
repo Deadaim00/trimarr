@@ -432,6 +432,7 @@ function seedDefaultSettings(db: BetterSqlite3.Database): void {
   insert.run("scheduleScanNewOrChangedOnly", DEFAULT_SETTINGS.scheduleScanNewOrChangedOnly ? "1" : "0");
   insert.run("scheduleProcessUnprocessedOnly", DEFAULT_SETTINGS.scheduleProcessUnprocessedOnly ? "1" : "0");
   insert.run("webhookEnabled", DEFAULT_SETTINGS.webhookEnabled ? "1" : "0");
+  insert.run("webhookAutoProcessWhenIdle", DEFAULT_SETTINGS.webhookAutoProcessWhenIdle ? "1" : "0");
   insert.run("verboseLogging", DEFAULT_SETTINGS.verboseLogging ? "1" : "0");
   insert.run("logRetentionDays", String(DEFAULT_SETTINGS.logRetentionDays));
   insert.run("trashEnabled", DEFAULT_SETTINGS.trashEnabled ? "1" : "0");
@@ -648,6 +649,7 @@ export function getSettings(): TrimarrSettings {
     scheduleScanNewOrChangedOnly: map.get("scheduleScanNewOrChangedOnly") !== "0",
     scheduleProcessUnprocessedOnly: map.get("scheduleProcessUnprocessedOnly") !== "0",
     webhookEnabled: map.get("webhookEnabled") === "1",
+    webhookAutoProcessWhenIdle: map.get("webhookAutoProcessWhenIdle") === "1",
     verboseLogging: map.get("verboseLogging") === "1",
     logRetentionDays: Number(map.get("logRetentionDays") ?? DEFAULT_SETTINGS.logRetentionDays),
     trashEnabled: map.get("trashEnabled") === "1",
@@ -682,6 +684,7 @@ export function saveSettings(settings: TrimarrSettings): TrimarrSettings {
     insert.run("scheduleScanNewOrChangedOnly", next.scheduleScanNewOrChangedOnly ? "1" : "0");
     insert.run("scheduleProcessUnprocessedOnly", next.scheduleProcessUnprocessedOnly ? "1" : "0");
     insert.run("webhookEnabled", next.webhookEnabled ? "1" : "0");
+    insert.run("webhookAutoProcessWhenIdle", next.webhookAutoProcessWhenIdle ? "1" : "0");
     insert.run("verboseLogging", next.verboseLogging ? "1" : "0");
     insert.run("logRetentionDays", String(next.logRetentionDays));
     insert.run("trashEnabled", next.trashEnabled ? "1" : "0");

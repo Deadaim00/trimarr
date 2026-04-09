@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { inspectMediaFile } from "@/lib/scan";
-import { getSettings, upsertFiles, writeAppLog } from "@/lib/storage";
+import { getQueueBatchState, hasRunningPlans, upsertFiles, writeAppLog, getSettings } from "@/lib/storage";
+import { startQueueBatch } from "@/lib/queue-batch";
 
 function extractCandidatePaths(value: unknown, results: Set<string>): void {
   if (!value) {
@@ -92,6 +93,14 @@ export async function POST(request: Request) {
       upsertFiles(records);
     }
 
+    const queueState = getQueueBatchState();
+    const startedAutoProcess =
+      records.length > 0 &&
+      settings.webhookAutoProcessWhenIdle &&
+      queueState.status === "idle" &&
+      !hasRunningPlans() &&
+      startQueueBatch("webhook");
+
     writeAppLog(
       "info",
       "webhook",
@@ -99,13 +108,17 @@ export async function POST(request: Request) {
       JSON.stringify({
         eventType,
         queued: records.length,
+        autoProcessStarted: startedAutoProcess,
         paths: records.map((record) => record.path),
       }),
     );
 
     return NextResponse.json({
-      message: `Queued ${records.length} file${records.length === 1 ? "" : "s"} from webhook.`,
+      message: startedAutoProcess
+        ? `Queued ${records.length} file${records.length === 1 ? "" : "s"} from webhook and started processing.`
+        : `Queued ${records.length} file${records.length === 1 ? "" : "s"} from webhook.`,
       queued: records.length,
+      processingStarted: startedAutoProcess,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Webhook processing failed.";

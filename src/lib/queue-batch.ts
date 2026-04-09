@@ -77,7 +77,7 @@ export function requestQueueBatchStop(): void {
   writeAppLog("info", "queue", "Queue batch stop requested", "Trimarr will stop after the active processors finish.");
 }
 
-export function startQueueBatch(source: "manual" | "scheduler" = "manual"): boolean {
+export function startQueueBatch(source: "manual" | "scheduler" | "webhook" = "manual"): boolean {
   const current = getQueueBatchState();
   if (queueBatchInFlight || current.status === "running" || current.status === "stopping") {
     return false;
@@ -101,7 +101,7 @@ export function startQueueBatch(source: "manual" | "scheduler" = "manual"): bool
   return true;
 }
 
-async function runQueueBatch(source: "manual" | "scheduler"): Promise<void> {
+async function runQueueBatch(source: "manual" | "scheduler" | "webhook"): Promise<void> {
   let processed = 0;
   const activeJobs = new Map<string, Promise<void>>();
 

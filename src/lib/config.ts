@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS: TrimarrSettings = {
   scheduleScanNewOrChangedOnly: false,
   scheduleProcessUnprocessedOnly: true,
   webhookEnabled: false,
+  webhookAutoProcessWhenIdle: false,
   verboseLogging: false,
   logRetentionDays: 30,
   trashEnabled: false,

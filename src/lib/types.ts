@@ -25,6 +25,7 @@ export type TrimarrSettings = {
   scheduleScanNewOrChangedOnly: boolean;
   scheduleProcessUnprocessedOnly: boolean;
   webhookEnabled: boolean;
+  webhookAutoProcessWhenIdle: boolean;
   verboseLogging: boolean;
   logRetentionDays: number;
   trashEnabled: boolean;
@@ -284,7 +285,7 @@ export type ActiveScanState = {
 
 export type QueueBatchState = {
   status: "idle" | "running" | "stopping";
-  source: "manual" | "scheduler";
+  source: "manual" | "scheduler" | "webhook";
   startedAt: string | null;
   updatedAt: string;
   message: string;

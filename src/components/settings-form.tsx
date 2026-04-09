@@ -36,6 +36,7 @@ export function SettingsForm({ settings }: { settings: TrimarrSettings }) {
     settings.scheduleProcessUnprocessedOnly,
   );
   const [webhookEnabled, setWebhookEnabled] = useState(settings.webhookEnabled);
+  const [webhookAutoProcessWhenIdle, setWebhookAutoProcessWhenIdle] = useState(settings.webhookAutoProcessWhenIdle);
   const [verboseLogging, setVerboseLogging] = useState(settings.verboseLogging);
   const [logRetentionDays, setLogRetentionDays] = useState(String(settings.logRetentionDays));
   const [trashEnabled, setTrashEnabled] = useState(settings.trashEnabled);
@@ -127,6 +128,7 @@ export function SettingsForm({ settings }: { settings: TrimarrSettings }) {
           scheduleScanNewOrChangedOnly,
           scheduleProcessUnprocessedOnly,
           webhookEnabled,
+          webhookAutoProcessWhenIdle,
           verboseLogging,
           logRetentionDays: Number(logRetentionDays),
           trashEnabled,
@@ -599,6 +601,22 @@ export function SettingsForm({ settings }: { settings: TrimarrSettings }) {
             <div className="settings-copy">
               <strong>Enable webhooks</strong>
               <span>Allow Sonarr or Radarr to push newly imported files into Trimarr immediately.</span>
+            </div>
+          </label>
+
+          <label className="settings-row settings-toggle-setting">
+            <span className="settings-switch">
+              <input
+                type="checkbox"
+                checked={webhookAutoProcessWhenIdle}
+                disabled={!webhookEnabled}
+                onChange={(event) => setWebhookAutoProcessWhenIdle(event.target.checked)}
+              />
+              <span className="settings-switch-ui" aria-hidden="true" />
+            </span>
+            <div className={clsx("settings-copy", !webhookEnabled && "settings-copy-disabled")}>
+              <strong>Auto-process when idle</strong>
+              <span>When a webhook adds files and Trimarr is idle, start the normal queue processor automatically.</span>
             </div>
           </label>
 

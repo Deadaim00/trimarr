@@ -25,6 +25,7 @@ type SettingsBody = {
   scheduleScanNewOrChangedOnly?: boolean;
   scheduleProcessUnprocessedOnly?: boolean;
   webhookEnabled?: boolean;
+  webhookAutoProcessWhenIdle?: boolean;
   verboseLogging?: boolean;
   logRetentionDays?: number;
   trashEnabled?: boolean;
@@ -104,6 +105,7 @@ export async function POST(request: Request) {
       scheduleProcessUnprocessedOnly:
         body.scheduleProcessUnprocessedOnly ?? current.scheduleProcessUnprocessedOnly,
       webhookEnabled: body.webhookEnabled ?? current.webhookEnabled,
+      webhookAutoProcessWhenIdle: body.webhookAutoProcessWhenIdle ?? current.webhookAutoProcessWhenIdle,
       verboseLogging: body.verboseLogging ?? current.verboseLogging,
       logRetentionDays: Math.min(365, Math.max(1, Number(body.logRetentionDays ?? current.logRetentionDays))),
       trashEnabled: body.trashEnabled ?? current.trashEnabled,
@@ -141,6 +143,7 @@ export async function POST(request: Request) {
         scheduleScanBeforeProcessing: saved.scheduleScanBeforeProcessing,
         scheduleScanNewOrChangedOnly: saved.scheduleScanNewOrChangedOnly,
         webhookEnabled: saved.webhookEnabled,
+        webhookAutoProcessWhenIdle: saved.webhookAutoProcessWhenIdle,
         verboseLogging: saved.verboseLogging,
         logRetentionDays: saved.logRetentionDays,
         prunedLogs,
