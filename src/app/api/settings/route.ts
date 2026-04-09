@@ -6,6 +6,7 @@ import type { TrimarrSettings } from "@/lib/types";
 type SettingsBody = {
   scanRoots?: string[];
   scanLimit?: number;
+  maxConcurrentJobs?: number;
   libraryPathPrefix?: string;
   subtitleProcessingEnabled?: boolean;
   keepEnglishSubtitleTracks?: boolean;
@@ -83,6 +84,7 @@ export async function POST(request: Request) {
     const nextSettings: TrimarrSettings = {
       scanRoots: normalizeScanRoots(body.scanRoots ?? current.scanRoots, libraryPathPrefix),
       scanLimit: Math.min(100, Math.max(1, Number(body.scanLimit ?? current.scanLimit))),
+      maxConcurrentJobs: Math.min(4, Math.max(1, Number(body.maxConcurrentJobs ?? current.maxConcurrentJobs))),
       libraryPathPrefix,
       subtitleProcessingEnabled: body.subtitleProcessingEnabled ?? current.subtitleProcessingEnabled,
       keepEnglishSubtitleTracks: body.keepEnglishSubtitleTracks ?? current.keepEnglishSubtitleTracks,
@@ -122,6 +124,7 @@ export async function POST(request: Request) {
       JSON.stringify({
         scanRoots: saved.scanRoots,
         scanLimit: saved.scanLimit,
+        maxConcurrentJobs: saved.maxConcurrentJobs,
         subtitleProcessingEnabled: saved.subtitleProcessingEnabled,
         keepEnglishSubtitleTracks: saved.keepEnglishSubtitleTracks,
         keepForcedEnglishSubtitles: saved.keepForcedEnglishSubtitles,

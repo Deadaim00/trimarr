@@ -6,6 +6,7 @@ export type PolicyResult = "matched" | "no_keep";
 export type TrimarrSettings = {
   scanRoots: string[];
   scanLimit: number;
+  maxConcurrentJobs: number;
   libraryPathPrefix: string;
   subtitleProcessingEnabled: boolean;
   keepEnglishSubtitleTracks: boolean;

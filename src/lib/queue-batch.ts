@@ -1,5 +1,6 @@
 import { processFilePlan } from "@/lib/process";
 import {
+  countRunningPlans,
   getQueueBatchState,
   getSettings,
   listQueuedPlans,
@@ -17,6 +18,16 @@ function nowIso(): string {
 
 function nextQueuedMediaFileId(): string | null {
   return listQueuedPlans(100000).find((plan) => plan.processingState === "queued")?.mediaFileId ?? null;
+}
+
+function activeProcessorLabel(count: number): string {
+  return count === 1 ? "1 active processor" : `${count} active processors`;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function detectedServerTimeZone(): string {
@@ -61,9 +72,9 @@ export function requestQueueBatchStop(): void {
     ...current,
     status: "stopping",
     updatedAt: nowIso(),
-    message: "Stopping after current file finishes.",
+    message: "Stopping after active processors finish.",
   });
-  writeAppLog("info", "queue", "Queue batch stop requested", "Trimarr will stop after the current file finishes.");
+  writeAppLog("info", "queue", "Queue batch stop requested", "Trimarr will stop after the active processors finish.");
 }
 
 export function startQueueBatch(source: "manual" | "scheduler" = "manual"): boolean {
@@ -92,13 +103,28 @@ export function startQueueBatch(source: "manual" | "scheduler" = "manual"): bool
 
 async function runQueueBatch(source: "manual" | "scheduler"): Promise<void> {
   let processed = 0;
+  const activeJobs = new Map<string, Promise<void>>();
 
   while (true) {
     const state = getQueueBatchState();
+    const settings = getSettings();
+    const maxConcurrentJobs = Math.min(4, Math.max(1, settings.maxConcurrentJobs || 1));
+
     if (source === "scheduler") {
-      const settings = getSettings();
       const timeZone = resolveSchedulerTimeZone(settings.scheduleTimeZone);
       if (!isWithinSchedulerWindow(settings.scheduleRunAt, settings.scheduleEndAt, timeZone)) {
+        if (activeJobs.size > 0) {
+          setQueueBatchState({
+            status: "stopping",
+            source,
+            startedAt: state.startedAt ?? nowIso(),
+            updatedAt: nowIso(),
+            message: `Scheduler window closed. Waiting for ${activeProcessorLabel(activeJobs.size)} to finish.`,
+          });
+          await Promise.race(activeJobs.values());
+          continue;
+        }
+
         setQueueBatchState({
           status: "idle",
           source,
@@ -120,6 +146,18 @@ async function runQueueBatch(source: "manual" | "scheduler"): Promise<void> {
     }
 
     if (state.status === "stopping") {
+      if (activeJobs.size > 0) {
+        setQueueBatchState({
+          status: "stopping",
+          source,
+          startedAt: state.startedAt ?? nowIso(),
+          updatedAt: nowIso(),
+          message: `Stopping after ${activeProcessorLabel(activeJobs.size)} finish.`,
+        });
+        await Promise.race(activeJobs.values());
+        continue;
+      }
+
       setQueueBatchState({
         status: "idle",
         source,
@@ -131,8 +169,42 @@ async function runQueueBatch(source: "manual" | "scheduler"): Promise<void> {
       return;
     }
 
+    let dispatched = 0;
+    while (activeJobs.size < maxConcurrentJobs) {
+      const mediaFileId = nextQueuedMediaFileId();
+      if (!mediaFileId) {
+        break;
+      }
+
+      if (!tryStartProcessing(mediaFileId, "Preparing remux", maxConcurrentJobs)) {
+        break;
+      }
+
+      dispatched += 1;
+      setQueueBatchState({
+        status: "running",
+        source,
+        startedAt: state.startedAt ?? nowIso(),
+        updatedAt: nowIso(),
+        message: `Running ${activeProcessorLabel(countRunningPlans())}.`,
+      });
+
+      const job = processFilePlan(mediaFileId)
+        .then(() => {
+          processed += 1;
+        })
+        .catch(() => {
+          // Failure state is persisted by the processor. Failed items stay failed until manually retried.
+        })
+        .finally(() => {
+          activeJobs.delete(mediaFileId);
+        });
+
+      activeJobs.set(mediaFileId, job);
+    }
+
     const mediaFileId = nextQueuedMediaFileId();
-    if (!mediaFileId) {
+    if (!mediaFileId && activeJobs.size === 0) {
       setQueueBatchState({
         status: "idle",
         source,
@@ -144,23 +216,40 @@ async function runQueueBatch(source: "manual" | "scheduler"): Promise<void> {
       return;
     }
 
-    if (!tryStartProcessing(mediaFileId, "Preparing remux")) {
+    if (activeJobs.size > 0) {
+      if (dispatched > 0) {
+        setQueueBatchState({
+          status: "running",
+          source,
+          startedAt: state.startedAt ?? nowIso(),
+          updatedAt: nowIso(),
+          message: `Running ${activeProcessorLabel(activeJobs.size)}.`,
+        });
+      }
+      await Promise.race(activeJobs.values());
+      continue;
+    }
+
+    if (countRunningPlans() >= maxConcurrentJobs) {
+      setQueueBatchState({
+        status: "running",
+        source,
+        startedAt: state.startedAt ?? nowIso(),
+        updatedAt: nowIso(),
+        message: `Waiting for capacity. ${activeProcessorLabel(countRunningPlans())} already in use.`,
+      });
+      await delay(500);
       continue;
     }
 
     setQueueBatchState({
-      status: "running",
+      status: "idle",
       source,
-      startedAt: state.startedAt ?? nowIso(),
+      startedAt: null,
       updatedAt: nowIso(),
-      message: `Processing file ${processed + 1}`,
+      message: processed > 0 ? `Processed ${processed} file(s).` : "No queued files to process.",
     });
-
-    try {
-      await processFilePlan(mediaFileId);
-      processed += 1;
-    } catch {
-      // Failure state is persisted by the processor. Failed items stay failed until manually retried.
-    }
+    writeAppLog("warn", "queue", "Queue batch exited without dispatching work", "Queued items could not be started.");
+    return;
   }
 }

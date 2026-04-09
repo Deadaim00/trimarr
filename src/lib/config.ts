@@ -10,6 +10,7 @@ export const DEFAULT_SCAN_ROOTS = [
 export const DEFAULT_SETTINGS: TrimarrSettings = {
   scanRoots: DEFAULT_SCAN_ROOTS,
   scanLimit: 10,
+  maxConcurrentJobs: 1,
   libraryPathPrefix: "/mnt/media",
   subtitleProcessingEnabled: true,
   keepEnglishSubtitleTracks: true,

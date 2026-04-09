@@ -413,6 +413,7 @@ function seedDefaultSettings(db: BetterSqlite3.Database): void {
   const insert = db.prepare("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)");
   insert.run("scanRoots", JSON.stringify(DEFAULT_SETTINGS.scanRoots));
   insert.run("scanLimit", String(DEFAULT_SETTINGS.scanLimit));
+  insert.run("maxConcurrentJobs", String(DEFAULT_SETTINGS.maxConcurrentJobs));
   insert.run("libraryPathPrefix", DEFAULT_SETTINGS.libraryPathPrefix);
   insert.run("subtitleProcessingEnabled", DEFAULT_SETTINGS.subtitleProcessingEnabled ? "1" : "0");
   insert.run("keepEnglishSubtitleTracks", DEFAULT_SETTINGS.keepEnglishSubtitleTracks ? "1" : "0");
@@ -628,6 +629,7 @@ export function getSettings(): TrimarrSettings {
   return {
     scanRoots: JSON.parse(map.get("scanRoots") ?? JSON.stringify(DEFAULT_SETTINGS.scanRoots)) as string[],
     scanLimit: Number(scanLimit ?? DEFAULT_SETTINGS.scanLimit),
+    maxConcurrentJobs: Math.min(4, Math.max(1, Number(map.get("maxConcurrentJobs") ?? DEFAULT_SETTINGS.maxConcurrentJobs))),
     libraryPathPrefix: map.get("libraryPathPrefix") ?? DEFAULT_SETTINGS.libraryPathPrefix,
     subtitleProcessingEnabled: map.get("subtitleProcessingEnabled") !== "0",
     keepEnglishSubtitleTracks: map.get("keepEnglishSubtitleTracks") !== "0",
@@ -660,6 +662,7 @@ export function saveSettings(settings: TrimarrSettings): TrimarrSettings {
   const transaction = db.transaction((next: TrimarrSettings) => {
     insert.run("scanRoots", JSON.stringify(next.scanRoots));
     insert.run("scanLimit", String(next.scanLimit));
+    insert.run("maxConcurrentJobs", String(next.maxConcurrentJobs));
     db.prepare("DELETE FROM app_settings WHERE key = ?").run("sampleScanLimit");
     insert.run("libraryPathPrefix", next.libraryPathPrefix);
     insert.run("subtitleProcessingEnabled", next.subtitleProcessingEnabled ? "1" : "0");
@@ -1346,23 +1349,41 @@ export function updateFilePlanProcessingState(
     .run(state, options.progressPercent ?? null, options.processingMessage ?? null, updatedAt, mediaFileId);
 }
 
-export function tryStartProcessing(mediaFileId: string, message = "Queued for processing"): boolean {
-  const updatedAt = new Date().toISOString();
-  const result = getDb()
-    .prepare(`
-      UPDATE file_plans
-      SET processing_state = 'running',
-          progress_percent = 0,
-          processing_message = ?,
-          processing_updated_at = ?
-      WHERE media_file_id = ?
-        AND processed_at IS NULL
-        AND processing_state != 'running'
-        AND removable_track_count > 0
-    `)
-    .run(message, updatedAt, mediaFileId);
+export function tryStartProcessing(
+  mediaFileId: string,
+  message = "Queued for processing",
+  maxConcurrentJobs?: number,
+): boolean {
+  const db = getDb();
+  const countRunning = db.prepare(
+    "SELECT COUNT(*) as count FROM file_plans WHERE processed_at IS NULL AND processing_state = 'running'",
+  );
+  const update = db.prepare(`
+    UPDATE file_plans
+    SET processing_state = 'running',
+        progress_percent = 0,
+        processing_message = ?,
+        processing_updated_at = ?
+    WHERE media_file_id = ?
+      AND processed_at IS NULL
+      AND processing_state != 'running'
+      AND removable_track_count > 0
+  `);
 
-  return result.changes > 0;
+  const transaction = db.transaction((fileId: string, nextMessage: string, limit?: number) => {
+    if (limit !== undefined) {
+      const running = (countRunning.get() as { count: number }).count;
+      if (running >= limit) {
+        return false;
+      }
+    }
+
+    const updatedAt = new Date().toISOString();
+    const result = update.run(nextMessage, updatedAt, fileId);
+    return result.changes > 0;
+  });
+
+  return transaction(mediaFileId, message, maxConcurrentJobs);
 }
 
 export function listRecentPlans(limit = 12, processedState: "all" | "processed" | "unprocessed" = "all"): FilePlan[] {
@@ -1620,11 +1641,15 @@ export function setQueueBatchState(state: QueueBatchState): void {
 }
 
 export function hasRunningPlans(): boolean {
+  return countRunningPlans() > 0;
+}
+
+export function countRunningPlans(): number {
   const row = getDb()
     .prepare("SELECT COUNT(*) as count FROM file_plans WHERE processed_at IS NULL AND processing_state = 'running'")
     .get() as { count: number };
 
-  return row.count > 0;
+  return row.count;
 }
 
 export function addFileHistoryEntry(

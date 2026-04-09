@@ -12,6 +12,7 @@ export function SettingsForm({ settings }: { settings: TrimarrSettings }) {
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [scanLimit, setScanLimit] = useState(String(settings.scanLimit));
+  const [maxConcurrentJobs, setMaxConcurrentJobs] = useState(String(settings.maxConcurrentJobs));
   const [libraryPathPrefix, setLibraryPathPrefix] = useState(settings.libraryPathPrefix);
   const [rootsText, setRootsText] = useState(settings.scanRoots.join("\n"));
   const [subtitleProcessingEnabled, setSubtitleProcessingEnabled] = useState(settings.subtitleProcessingEnabled);
@@ -107,6 +108,7 @@ export function SettingsForm({ settings }: { settings: TrimarrSettings }) {
             .map((value) => value.trim())
             .filter(Boolean),
           scanLimit: Number(scanLimit),
+          maxConcurrentJobs: Number(maxConcurrentJobs),
           libraryPathPrefix,
           subtitleProcessingEnabled,
           keepEnglishSubtitleTracks,
@@ -188,6 +190,27 @@ export function SettingsForm({ settings }: { settings: TrimarrSettings }) {
                 value={scanLimit}
                 onChange={(event) => setScanLimit(event.target.value)}
               />
+            </div>
+          </label>
+
+          <label className="settings-row" htmlFor="max-concurrent-jobs">
+            <div className="settings-copy">
+              <strong>Concurrent processors</strong>
+              <span>How many files Trimarr is allowed to remux at the same time. Start with 2 if your storage can keep up.</span>
+            </div>
+            <div className="settings-control settings-control-small">
+              <select
+                id="max-concurrent-jobs"
+                className="input"
+                value={maxConcurrentJobs}
+                onChange={(event) => setMaxConcurrentJobs(event.target.value)}
+              >
+                {[1, 2, 3, 4].map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
             </div>
           </label>
 

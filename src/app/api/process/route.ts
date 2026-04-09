@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import {
   addFileHistoryEntry,
+  countRunningPlans,
   getFailedQueueCount,
   getQueueBatchState,
   getFilePlanById,
-  hasRunningPlans,
+  getSettings,
   listFailedPlans,
   listQueuedPlans,
   resetPlansToQueued,
@@ -26,10 +27,6 @@ export async function POST(request: Request) {
       const queueState = getQueueBatchState();
       if (queueState.status === "running" || queueState.status === "stopping") {
         return NextResponse.json({ message: "Queue processing is already active." }, { status: 409 });
-      }
-
-      if (hasRunningPlans()) {
-        return NextResponse.json({ message: "A file is already processing." }, { status: 409 });
       }
 
       const hasQueuedWork = listQueuedPlans(1000).some((plan) => plan.processingState === "queued");
@@ -96,8 +93,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "This file is already processing." }, { status: 409 });
     }
 
-    if (!tryStartProcessing(mediaFileId, "Preparing remux")) {
-      return NextResponse.json({ message: "This file is already processing or no longer eligible." }, { status: 409 });
+    const settings = getSettings();
+    const maxConcurrentJobs = Math.min(4, Math.max(1, settings.maxConcurrentJobs || 1));
+    if (countRunningPlans() >= maxConcurrentJobs) {
+      return NextResponse.json(
+        { message: `The concurrency limit has been reached (${maxConcurrentJobs} active processor${maxConcurrentJobs === 1 ? "" : "s"}).` },
+        { status: 409 },
+      );
+    }
+
+    if (!tryStartProcessing(mediaFileId, "Preparing remux", maxConcurrentJobs)) {
+      return NextResponse.json(
+        { message: "This file is already processing, no longer eligible, or the concurrency limit was reached." },
+        { status: 409 },
+      );
     }
 
     writeAppLog("info", "queue", `Queued processing for ${plan.path}`, null);
