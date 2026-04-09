@@ -44,7 +44,6 @@ export function SettingsForm({ settings }: { settings: TrimarrSettings }) {
   const [showWebhookToken, setShowWebhookToken] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const webhookUrl = typeof window !== "undefined" ? `${window.location.origin}/api/webhooks/arr` : "/api/webhooks/arr";
-  const sabWebhookUrl = typeof window !== "undefined" ? `${window.location.origin}/api/webhooks/sab` : "/api/webhooks/sab";
   const timeZoneOptions =
     typeof Intl !== "undefined" && typeof Intl.supportedValuesOf === "function"
       ? [SERVER_LOCAL_TIMEZONE, ...Intl.supportedValuesOf("timeZone")]
@@ -91,15 +90,6 @@ export function SettingsForm({ settings }: { settings: TrimarrSettings }) {
       showToast();
     } catch {
       setMessage("Failed to copy the webhook URL.");
-    }
-  }
-
-  async function copySabWebhookUrl() {
-    try {
-      await copyTextToClipboard(sabWebhookUrl);
-      showToast();
-    } catch {
-      setMessage("Failed to copy the SAB webhook URL.");
     }
   }
 
@@ -652,21 +642,6 @@ export function SettingsForm({ settings }: { settings: TrimarrSettings }) {
                 </button>
                 <button type="button" className="button button-secondary" onClick={copyWebhookToken} disabled={!webhookToken.trim()}>
                   Copy
-                </button>
-              </div>
-            </div>
-          </label>
-
-          <label className="settings-row settings-row-block" htmlFor="sab-webhook-url">
-            <div className="settings-copy">
-              <strong>SAB post-process URL</strong>
-              <span>Use this with the bundled SAB post-processing script so completed downloads get scanned and queued before import.</span>
-            </div>
-            <div className="settings-control settings-control-block">
-              <div className="settings-inline-control">
-                <input id="sab-webhook-url" className="input" value={sabWebhookUrl} readOnly />
-                <button type="button" className="button button-secondary" onClick={copySabWebhookUrl}>
-                  Copy URL
                 </button>
               </div>
             </div>
