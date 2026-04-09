@@ -554,6 +554,8 @@ textarea {
 
 .queue-table-header > :first-child,
 .queue-row > :first-child {
+  min-width: 0;
+  width: 100%;
   justify-self: start;
 }
 
@@ -1624,7 +1626,8 @@ textarea {
 }
 
 .settings-toggle-setting .settings-copy {
-  max-width: 520px;
+  max-width: none;
+  width: 100%;
 }
 
 .settings-actions {
