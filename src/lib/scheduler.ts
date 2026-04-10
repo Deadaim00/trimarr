@@ -12,20 +12,16 @@ import {
   upsertFiles,
   writeAppLog,
 } from "@/lib/storage";
-import { SERVER_LOCAL_TIMEZONE } from "@/lib/config";
+import { isWithinConfiguredSchedulerWindow, resolveSchedulerTimeZone } from "@/lib/scheduler-window";
 
 type SchedulerTickResult = {
   status: "disabled" | "waiting" | "already_ran" | "busy" | "completed" | "no_work" | "outside_window";
   message: string;
 };
 
-function detectedServerTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || process.env.TZ || "UTC";
-}
-
 function schedulerTimeZone(): string {
   const configured = getSettings().scheduleTimeZone;
-  return configured === SERVER_LOCAL_TIMEZONE ? detectedServerTimeZone() : configured;
+  return resolveSchedulerTimeZone(configured);
 }
 
 function localDateParts(date = new Date()) {
@@ -50,18 +46,6 @@ function localDateParts(date = new Date()) {
     dateKey: `${year}-${month}-${day}`,
     timeKey: `${hour}:${minute}`,
   };
-}
-
-function isWithinSchedulerWindow(nowTime: string, runAt: string, endAt: string): boolean {
-  if (runAt === endAt) {
-    return true;
-  }
-
-  if (runAt < endAt) {
-    return nowTime >= runAt && nowTime < endAt;
-  }
-
-  return nowTime >= runAt || nowTime < endAt;
 }
 
 async function scanScheduledRoots(): Promise<{ files: number; subtitleTracks: number; audioTracks: number }> {
@@ -117,7 +101,7 @@ export async function runSchedulerTick(): Promise<SchedulerTickResult> {
     return { status: "waiting", message: `Waiting for ${settings.scheduleRunAt}.` };
   }
 
-  if (!isWithinSchedulerWindow(now.timeKey, settings.scheduleRunAt, settings.scheduleEndAt)) {
+  if (!isWithinConfiguredSchedulerWindow(settings)) {
     return {
       status: "outside_window",
       message: `Outside the scheduler window (${settings.scheduleRunAt} - ${settings.scheduleEndAt}).`,

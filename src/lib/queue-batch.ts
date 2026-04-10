@@ -8,7 +8,7 @@ import {
   tryStartProcessing,
   writeAppLog,
 } from "@/lib/storage";
-import { SERVER_LOCAL_TIMEZONE } from "@/lib/config";
+import { isWithinConfiguredSchedulerWindow, resolveSchedulerTimeZone } from "@/lib/scheduler-window";
 
 let queueBatchInFlight = false;
 
@@ -28,38 +28,6 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
-}
-
-function detectedServerTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || process.env.TZ || "UTC";
-}
-
-function resolveSchedulerTimeZone(configured: string): string {
-  return configured === SERVER_LOCAL_TIMEZONE ? detectedServerTimeZone() : configured;
-}
-
-function timeKeyInZone(timeZone: string, date = new Date()): string {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  });
-  const parts = new Map(formatter.formatToParts(date).map((part) => [part.type, part.value]));
-  return `${parts.get("hour") ?? "00"}:${parts.get("minute") ?? "00"}`;
-}
-
-function isWithinSchedulerWindow(runAt: string, endAt: string, timeZone: string): boolean {
-  const now = timeKeyInZone(timeZone);
-  if (runAt === endAt) {
-    return true;
-  }
-
-  if (runAt < endAt) {
-    return now >= runAt && now < endAt;
-  }
-
-  return now >= runAt || now < endAt;
 }
 
 export function requestQueueBatchStop(): void {
@@ -110,9 +78,10 @@ async function runQueueBatch(source: "manual" | "scheduler" | "webhook"): Promis
     const settings = getSettings();
     const maxConcurrentJobs = Math.min(4, Math.max(1, settings.maxConcurrentJobs || 1));
 
-    if (source === "scheduler") {
+    const shouldHonorSchedulerWindow = source === "scheduler" || (source === "webhook" && settings.scheduleEnabled);
+    if (shouldHonorSchedulerWindow) {
       const timeZone = resolveSchedulerTimeZone(settings.scheduleTimeZone);
-      if (!isWithinSchedulerWindow(settings.scheduleRunAt, settings.scheduleEndAt, timeZone)) {
+      if (!isWithinConfiguredSchedulerWindow(settings)) {
         if (activeJobs.size > 0) {
           setQueueBatchState({
             status: "stopping",
