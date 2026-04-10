@@ -197,6 +197,8 @@ export async function inspectMediaFile(path: string): Promise<MediaFileRecord> {
     processedWithWarnings: false,
     sizeBeforeBytes: null,
     sizeAfterBytes: null,
+    processedSubtitleRemovedCount: 0,
+    processedAudioRemovedCount: 0,
     keepCount,
     removeCount,
     subtitleTrackCount: tracks.length,

@@ -486,6 +486,8 @@ function rowToFile(row: FileRow, tracks: SubtitleTrack[], audioTracks: AudioTrac
     processedWithWarnings: Boolean(row.processed_with_warnings),
     sizeBeforeBytes: row.size_before_bytes,
     sizeAfterBytes: row.size_after_bytes,
+    processedSubtitleRemovedCount: row.processed_subtitle_removed_count,
+    processedAudioRemovedCount: row.processed_audio_removed_count,
     keepCount: row.keep_count,
     removeCount: row.remove_count,
     subtitleTrackCount: row.subtitle_track_count,

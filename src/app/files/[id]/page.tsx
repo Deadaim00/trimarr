@@ -30,6 +30,8 @@ export default async function FileDetailPage({ params }: PageProps) {
         processedWithWarnings: storedFile.processedWithWarnings,
         sizeBeforeBytes: storedFile.sizeBeforeBytes,
         sizeAfterBytes: storedFile.sizeAfterBytes,
+        processedSubtitleRemovedCount: storedFile.processedSubtitleRemovedCount,
+        processedAudioRemovedCount: storedFile.processedAudioRemovedCount,
       }
     : storedFile;
 
@@ -104,6 +106,14 @@ export default async function FileDetailPage({ params }: PageProps) {
           <div className="stat-card">
             <span className="stat-label">After size</span>
             <strong>{afterSize ? formatBytes(afterSize) : "Not processed"}</strong>
+          </div>
+          <div className="stat-card">
+            <span className="stat-label">Subtitle tracks removed</span>
+            <strong>{file.processedAt ? file.processedSubtitleRemovedCount : "Not processed"}</strong>
+          </div>
+          <div className="stat-card">
+            <span className="stat-label">Audio tracks removed</span>
+            <strong>{file.processedAt ? file.processedAudioRemovedCount : "Not processed"}</strong>
           </div>
         </div>
       </section>

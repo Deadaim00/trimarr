@@ -70,6 +70,8 @@ export type MediaFileRecord = {
   processedWithWarnings: boolean;
   sizeBeforeBytes: number | null;
   sizeAfterBytes: number | null;
+  processedSubtitleRemovedCount: number;
+  processedAudioRemovedCount: number;
   keepCount: number;
   removeCount: number;
   subtitleTrackCount: number;
