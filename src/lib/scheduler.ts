@@ -130,7 +130,11 @@ export async function runSchedulerTick(): Promise<SchedulerTickResult> {
   }
 
   if (hasRunningPlans()) {
-    writeAppLog("warn", "scheduler", "Scheduled run skipped because processing is already active", null);
+    const lastBusyLogDate = getMetaValue("schedulerBusyLogDate");
+    if (lastBusyLogDate !== now.dateKey) {
+      writeAppLog("warn", "scheduler", "Scheduled run skipped because processing is already active", null);
+      setMetaValue("schedulerBusyLogDate", now.dateKey);
+    }
     return { status: "busy", message: "Processing is already running." };
   }
 
