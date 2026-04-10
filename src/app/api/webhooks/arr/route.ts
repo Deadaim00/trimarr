@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { inspectMediaFile } from "@/lib/scan";
 import { getQueueBatchState, hasRunningPlans, upsertFiles, writeAppLog, getSettings } from "@/lib/storage";
 import { startQueueBatch } from "@/lib/queue-batch";
-import { isWithinConfiguredSchedulerWindow } from "@/lib/scheduler-window";
 
 function extractCandidatePaths(value: unknown, results: Set<string>): void {
   if (!value) {
@@ -95,11 +94,9 @@ export async function POST(request: Request) {
     }
 
     const queueState = getQueueBatchState();
-    const canAutoProcessNow = !settings.scheduleEnabled || isWithinConfiguredSchedulerWindow(settings);
     const startedAutoProcess =
       records.length > 0 &&
       settings.webhookAutoProcessWhenIdle &&
-      canAutoProcessNow &&
       queueState.status === "idle" &&
       !hasRunningPlans() &&
       startQueueBatch("webhook");
@@ -112,7 +109,6 @@ export async function POST(request: Request) {
         eventType,
         queued: records.length,
         autoProcessStarted: startedAutoProcess,
-        blockedByScheduleWindow: records.length > 0 && settings.webhookAutoProcessWhenIdle && !canAutoProcessNow,
         paths: records.map((record) => record.path),
       }),
     );
@@ -120,9 +116,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       message: startedAutoProcess
         ? `Queued ${records.length} file${records.length === 1 ? "" : "s"} from webhook and started processing.`
-        : records.length > 0 && settings.webhookAutoProcessWhenIdle && !canAutoProcessNow
-          ? `Queued ${records.length} file${records.length === 1 ? "" : "s"} from webhook. Auto-processing is waiting for the scheduler window.`
-          : `Queued ${records.length} file${records.length === 1 ? "" : "s"} from webhook.`,
+        : `Queued ${records.length} file${records.length === 1 ? "" : "s"} from webhook.`,
       queued: records.length,
       processingStarted: startedAutoProcess,
     });

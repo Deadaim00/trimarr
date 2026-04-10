@@ -78,8 +78,7 @@ async function runQueueBatch(source: "manual" | "scheduler" | "webhook"): Promis
     const settings = getSettings();
     const maxConcurrentJobs = Math.min(4, Math.max(1, settings.maxConcurrentJobs || 1));
 
-    const shouldHonorSchedulerWindow = source === "scheduler" || (source === "webhook" && settings.scheduleEnabled);
-    if (shouldHonorSchedulerWindow) {
+    if (source === "scheduler") {
       const timeZone = resolveSchedulerTimeZone(settings.scheduleTimeZone);
       if (!isWithinConfiguredSchedulerWindow(settings)) {
         if (activeJobs.size > 0) {
