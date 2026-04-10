@@ -40,6 +40,18 @@ function nextScheduledRunLabel(runAt: string, timeZone: string): string {
   }).format(target);
 }
 
+function batchSourceLabel(source: "manual" | "scheduler" | "webhook"): string {
+  if (source === "scheduler") {
+    return "Scheduler";
+  }
+
+  if (source === "webhook") {
+    return "Webhook";
+  }
+
+  return "Manual";
+}
+
 type QueuePageProps = {
   searchParams: Promise<{
     q?: string;
@@ -84,6 +96,7 @@ export default async function QueuePage({ searchParams }: QueuePageProps) {
             {totalPages > 1 ? ` • page ${safePage} of ${totalPages}` : ""}
           </span>
           <span>{`Next scheduled process: ${nextScheduleLabel}`}</span>
+          {batchState.status !== "idle" ? <span className="run-mode">{`Source: ${batchSourceLabel(batchState.source)}`}</span> : null}
           {batchState.status !== "idle" ? <span>{batchState.message}</span> : null}
         </div>
       </section>

@@ -281,6 +281,10 @@ textarea {
   font-size: 0.82rem;
 }
 
+.panel-meta .run-mode {
+  flex: 0 0 auto;
+}
+
 .inline-link {
   color: var(--accent);
 }
