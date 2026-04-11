@@ -1,6 +1,7 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { existsSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { readdir, rm } from "node:fs/promises";
+import { basename, dirname, extname, join } from "node:path";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 import { createHash } from "node:crypto";
 import type {
@@ -1643,6 +1644,103 @@ export function getQueueBatchState(): QueueBatchState {
 
 export function setQueueBatchState(state: QueueBatchState): void {
   setMetaValue("queueBatchState", JSON.stringify(state));
+}
+
+async function cleanupInterruptedWorkingFiles(inputPath: string): Promise<string[]> {
+  if (!existsSync(inputPath)) {
+    return [];
+  }
+
+  const dir = dirname(inputPath);
+  const ext = extname(inputPath);
+  const base = basename(inputPath, ext);
+  const prefix = `.${base}.trimarr-working-`;
+
+  try {
+    const entries = await readdir(dir);
+    const removed: string[] = [];
+
+    for (const entry of entries) {
+      if (!entry.startsWith(prefix) || !entry.endsWith(ext)) {
+        continue;
+      }
+
+      const tempPath = join(dir, entry);
+      await rm(tempPath, { force: true });
+      removed.push(tempPath);
+    }
+
+    return removed;
+  } catch {
+    return [];
+  }
+}
+
+export async function recoverInterruptedProcessingState(): Promise<void> {
+  const db = getDb();
+  const batchState = getQueueBatchState();
+  const interruptedPlans = db
+    .prepare(`
+      SELECT media_file_id, path
+      FROM file_plans
+      WHERE processed_at IS NULL
+        AND processing_state = 'running'
+    `)
+    .all() as Array<{ media_file_id: string; path: string }>;
+
+  if (interruptedPlans.length === 0 && batchState.status === "idle") {
+    return;
+  }
+
+  const updatedAt = new Date().toISOString();
+  const message = "Interrupted by app restart. Rescan or retry after reviewing the file.";
+
+  const markInterrupted = db.prepare(`
+    UPDATE file_plans
+    SET processing_state = 'failed',
+        progress_percent = NULL,
+        processing_message = ?,
+        processing_updated_at = ?
+    WHERE media_file_id = ?
+      AND processed_at IS NULL
+      AND processing_state = 'running'
+  `);
+
+  const transaction = db.transaction((plans: Array<{ media_file_id: string; path: string }>) => {
+    for (const plan of plans) {
+      markInterrupted.run(message, updatedAt, plan.media_file_id);
+    }
+  });
+
+  transaction(interruptedPlans);
+
+  if (batchState.status !== "idle") {
+    setQueueBatchState({
+      status: "idle",
+      source: batchState.source,
+      startedAt: null,
+      updatedAt,
+      message: "Recovered from interrupted processing after app restart.",
+    });
+  }
+
+  for (const plan of interruptedPlans) {
+    addFileHistoryEntry(plan.media_file_id, "failed", "Processing interrupted by app restart", {
+      details: message,
+    });
+  }
+
+  const removedTempFiles = (
+    await Promise.all(interruptedPlans.map((plan) => cleanupInterruptedWorkingFiles(plan.path)))
+  ).flat();
+
+  writeAppLog(
+    "warn",
+    "queue",
+    "Recovered interrupted queue state",
+    `Reset queue batch to idle and marked ${interruptedPlans.length} stale running file(s) as failed. Removed ${removedTempFiles.length} interrupted working file(s).`,
+    true,
+  );
 }
 
 export function hasRunningPlans(): boolean {
