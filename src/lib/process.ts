@@ -60,6 +60,41 @@ function parseProgress(line: string): number | null {
   return null;
 }
 
+function envDurationMs(name: string, fallbackMs: number): number {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallbackMs;
+}
+
+function processingErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return "Processing failed.";
+  }
+
+  const message = error.message;
+  const lower = message.toLowerCase();
+
+  if (lower.includes("validation failed")) {
+    return `Validation error: ${message}`;
+  }
+
+  if (
+    lower.includes("enoent") ||
+    lower.includes("eacces") ||
+    lower.includes("eperm") ||
+    lower.includes("stale file handle") ||
+    lower.includes("input/output error") ||
+    lower.includes("i/o error")
+  ) {
+    return `Storage error: ${message}`;
+  }
+
+  if (lower.includes("mkvmerge") || lower.includes("remux")) {
+    return `Remux error: ${message}`;
+  }
+
+  return message;
+}
+
 function trackSignature(track: SubtitleTrack): string {
   return JSON.stringify({
     codec: track.codec,
@@ -136,13 +171,75 @@ async function remuxFile(
   args.push(inputPath);
 
   return await new Promise<{ warnings: string | null }>((resolve, reject) => {
+    const stallTimeoutMs = envDurationMs("TRIMARR_REMUX_STALL_TIMEOUT_MS", 45 * 60 * 1000);
+    const maxRuntimeMs = envDurationMs("TRIMARR_REMUX_MAX_RUNTIME_MS", 12 * 60 * 60 * 1000);
     const child = spawn("/usr/bin/mkvmerge", args, {
       stdio: ["ignore", "pipe", "pipe"],
     });
 
     let stderr = "";
+    let settled = false;
+    let terminatingReason: string | null = null;
+    let stallTimer: NodeJS.Timeout | null = null;
+    let killTimer: NodeJS.Timeout | null = null;
+
+    function clearTimers() {
+      if (stallTimer) {
+        clearTimeout(stallTimer);
+      }
+      if (killTimer) {
+        clearTimeout(killTimer);
+      }
+    }
+
+    function rejectOnce(error: Error) {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimers();
+      reject(error);
+    }
+
+    function terminateHungProcess(reason: string) {
+      if (settled || terminatingReason) {
+        return;
+      }
+
+      terminatingReason = reason;
+      clearTimers();
+      updateFilePlanProcessingState(mediaFileId, "running", {
+        progressPercent: null,
+        processingMessage: reason,
+      });
+      writeAppLog("warn", "process", `Stopping stalled remux for ${mediaFileId}`, reason);
+
+      child.kill("SIGTERM");
+      setTimeout(() => {
+        if (!settled && child.exitCode === null) {
+          child.kill("SIGKILL");
+        }
+      }, 10000);
+    }
+
+    function resetStallTimer() {
+      if (stallTimer) {
+        clearTimeout(stallTimer);
+      }
+
+      stallTimer = setTimeout(() => {
+        terminateHungProcess(`Remux stalled: no mkvmerge output for ${Math.round(stallTimeoutMs / 60000)} minute(s).`);
+      }, stallTimeoutMs);
+    }
+
+    resetStallTimer();
+    killTimer = setTimeout(() => {
+      terminateHungProcess(`Remux exceeded maximum runtime of ${Math.round(maxRuntimeMs / 60000)} minute(s).`);
+    }, maxRuntimeMs);
 
     function handleChunk(chunk: Buffer) {
+      resetStallTimer();
       const text = chunk.toString();
       stderr += text;
 
@@ -161,8 +258,21 @@ async function remuxFile(
     child.stdout.on("data", handleChunk);
     child.stderr.on("data", handleChunk);
 
-    child.on("error", reject);
+    child.on("error", (error) => {
+      rejectOnce(error);
+    });
     child.on("close", (code) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimers();
+      if (terminatingReason) {
+        reject(new Error(terminatingReason));
+        return;
+      }
+
       if (code === 0) {
         resolve({ warnings: null });
         return;
@@ -202,10 +312,6 @@ export async function processFilePlan(mediaFileId: string): Promise<void> {
   const { tempPath, backupPath } = workingPaths(file.path);
   const processedAt = new Date().toISOString();
 
-  if (file.audioTrackCount > 0 && keepAudioTracks.length === 0) {
-    throw new Error("Refusing to process because the current audio keep policy would remove every audio track.");
-  }
-
   updateFilePlanProcessingState(mediaFileId, "running", {
     progressPercent: 0,
     processingMessage: "Preparing remux",
@@ -222,6 +328,10 @@ export async function processFilePlan(mediaFileId: string): Promise<void> {
   });
 
   try {
+    if (file.audioTrackCount > 0 && keepAudioTracks.length === 0) {
+      throw new Error("Refusing to process because the current audio keep policy would remove every audio track.");
+    }
+
     await access(file.path, constants.R_OK | constants.W_OK);
     const remuxResult = await remuxFile(file.path, tempPath, keepSubtitleTrackIndexes, keepAudioTrackIndexes, mediaFileId);
 
@@ -343,19 +453,20 @@ export async function processFilePlan(mediaFileId: string): Promise<void> {
 
     await rm(tempPath, { force: true }).catch(() => undefined);
 
+    const failureMessage = processingErrorMessage(error);
     updateFilePlanProcessingState(mediaFileId, "failed", {
       progressPercent: null,
-      processingMessage: error instanceof Error ? error.message : "Processing failed.",
+      processingMessage: failureMessage,
     });
     addFileHistoryEntry(mediaFileId, "failed", "Processing failed", {
-      details: error instanceof Error ? error.message : "Processing failed.",
+      details: failureMessage,
       sizeBeforeBytes: file.fileSizeBytes,
     });
     writeAppLog(
       "error",
       "process",
       `Processing failed for ${file.path}`,
-      error instanceof Error ? error.message : "Processing failed.",
+      failureMessage,
     );
     throw error;
   }

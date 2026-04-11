@@ -1,6 +1,6 @@
 import type BetterSqlite3 from "better-sqlite3";
 import { existsSync, mkdirSync } from "node:fs";
-import { readdir, rm } from "node:fs/promises";
+import { readdir, rename, rm } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 import { DEFAULT_SETTINGS } from "@/lib/config";
 import { createHash } from "node:crypto";
@@ -1473,6 +1473,22 @@ export function listQueuedPlans(limit = 250): FilePlan[] {
   return listQueuedPlansPage({}, limit, 0);
 }
 
+export function getNextQueuedMediaFileId(): string | null {
+  const row = getDb()
+    .prepare(`
+      SELECT media_file_id
+      FROM file_plans
+      WHERE processed_at IS NULL
+        AND removable_track_count > 0
+        AND processing_state = 'queued'
+      ORDER BY planned_at DESC, path ASC
+      LIMIT 1
+    `)
+    .get() as { media_file_id: string } | undefined;
+
+  return row?.media_file_id ?? null;
+}
+
 export function getQueueCount(): number {
   return countQueuedPlans();
 }
@@ -1676,6 +1692,38 @@ async function cleanupInterruptedWorkingFiles(inputPath: string): Promise<string
   }
 }
 
+async function recoverInterruptedBackup(inputPath: string): Promise<{ restored: string | null; backupsKept: string[] }> {
+  const dir = dirname(inputPath);
+  const ext = extname(inputPath);
+  const base = basename(inputPath, ext);
+  const prefix = `.${base}.trimarr-backup-`;
+
+  try {
+    const backups = (await readdir(dir))
+      .filter((entry) => entry.startsWith(prefix) && entry.endsWith(ext))
+      .map((entry) => join(dir, entry))
+      .sort();
+
+    if (backups.length === 0) {
+      return { restored: null, backupsKept: [] };
+    }
+
+    if (existsSync(inputPath)) {
+      return { restored: null, backupsKept: backups };
+    }
+
+    const restorePath = backups.at(-1);
+    if (!restorePath) {
+      return { restored: null, backupsKept: [] };
+    }
+
+    await rename(restorePath, inputPath);
+    return { restored: restorePath, backupsKept: backups.filter((backup) => backup !== restorePath) };
+  } catch {
+    return { restored: null, backupsKept: [] };
+  }
+}
+
 export async function recoverInterruptedProcessingState(): Promise<void> {
   const db = getDb();
   const batchState = getQueueBatchState();
@@ -1733,14 +1781,32 @@ export async function recoverInterruptedProcessingState(): Promise<void> {
   const removedTempFiles = (
     await Promise.all(interruptedPlans.map((plan) => cleanupInterruptedWorkingFiles(plan.path)))
   ).flat();
+  const recoveredBackups = await Promise.all(interruptedPlans.map((plan) => recoverInterruptedBackup(plan.path)));
+  const restoredBackups = recoveredBackups.flatMap((result) => (result.restored ? [result.restored] : []));
+  const keptBackups = recoveredBackups.flatMap((result) => result.backupsKept);
 
   writeAppLog(
     "warn",
     "queue",
     "Recovered interrupted queue state",
-    `Reset queue batch to idle and marked ${interruptedPlans.length} stale running file(s) as failed. Removed ${removedTempFiles.length} interrupted working file(s).`,
+    `Reset queue batch to idle and marked ${interruptedPlans.length} stale running file(s) as failed. Removed ${removedTempFiles.length} interrupted working file(s). Restored ${restoredBackups.length} backup file(s). Kept ${keptBackups.length} backup file(s) for manual review.`,
     true,
   );
+}
+
+export function runStartupMaintenance(): void {
+  const settings = getSettings();
+  const prunedLogs = pruneLogs(settings.logRetentionDays);
+
+  if (prunedLogs > 0) {
+    writeAppLog(
+      "info",
+      "system",
+      "Pruned retained logs during startup",
+      `Removed ${prunedLogs} log entries older than ${settings.logRetentionDays} days.`,
+      true,
+    );
+  }
 }
 
 export function hasRunningPlans(): boolean {

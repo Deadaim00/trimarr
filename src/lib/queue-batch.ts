@@ -1,9 +1,9 @@
 import { processFilePlan } from "@/lib/process";
 import {
   countRunningPlans,
+  getNextQueuedMediaFileId,
   getQueueBatchState,
   getSettings,
-  listQueuedPlans,
   setQueueBatchState,
   tryStartProcessing,
   writeAppLog,
@@ -14,10 +14,6 @@ let queueBatchInFlight = false;
 
 function nowIso(): string {
   return new Date().toISOString();
-}
-
-function nextQueuedMediaFileId(): string | null {
-  return listQueuedPlans(100000).find((plan) => plan.processingState === "queued")?.mediaFileId ?? null;
 }
 
 function activeProcessorLabel(count: number): string {
@@ -139,7 +135,7 @@ async function runQueueBatch(source: "manual" | "scheduler" | "webhook"): Promis
 
     let dispatched = 0;
     while (activeJobs.size < maxConcurrentJobs) {
-      const mediaFileId = nextQueuedMediaFileId();
+      const mediaFileId = getNextQueuedMediaFileId();
       if (!mediaFileId) {
         break;
       }
@@ -171,7 +167,7 @@ async function runQueueBatch(source: "manual" | "scheduler" | "webhook"): Promis
       activeJobs.set(mediaFileId, job);
     }
 
-    const mediaFileId = nextQueuedMediaFileId();
+    const mediaFileId = getNextQueuedMediaFileId();
     if (!mediaFileId && activeJobs.size === 0) {
       setQueueBatchState({
         status: "idle",

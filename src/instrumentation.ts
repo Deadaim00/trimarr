@@ -3,6 +3,7 @@ export async function register() {
     return;
   }
 
-  const { recoverInterruptedProcessingState } = await import("@/lib/storage");
-  recoverInterruptedProcessingState();
+  const { recoverInterruptedProcessingState, runStartupMaintenance } = await import("@/lib/storage");
+  runStartupMaintenance();
+  await recoverInterruptedProcessingState();
 }
