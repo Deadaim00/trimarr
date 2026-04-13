@@ -75,6 +75,7 @@ export function QueueFilters({ query, status, result, category }: QueueFiltersPr
         <option value="queued">Queued</option>
         <option value="running">Running</option>
         <option value="failed">Failed</option>
+        <option value="skipped">Skipped</option>
         <option value="idle">Idle</option>
       </select>
       <select

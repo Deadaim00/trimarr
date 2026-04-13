@@ -55,7 +55,7 @@ function batchSourceLabel(source: "manual" | "scheduler" | "webhook"): string {
 type QueuePageProps = {
   searchParams: Promise<{
     q?: string;
-    status?: "all" | "queued" | "running" | "failed" | "idle";
+    status?: "all" | "queued" | "running" | "failed" | "skipped" | "idle";
     result?: "all" | "matched" | "no_keep";
     category?: "all" | "movie" | "tv";
     page?: string;
@@ -154,6 +154,8 @@ export default async function QueuePage({ searchParams }: QueuePageProps) {
                     ? `running ${plan.progressPercent ?? 0}%`
                     : plan.processingState === "failed"
                       ? "failed"
+                      : plan.processingState === "skipped"
+                        ? "skipped"
                       : plan.processingState}
                 </span>
                 <QueueActions mediaFileId={plan.mediaFileId} processingState={plan.processingState} />

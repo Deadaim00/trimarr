@@ -185,7 +185,7 @@ export type FilePlan = {
   processedWithWarnings: boolean;
   plannedAt: string;
   lastScannedAt: string;
-  processingState: "queued" | "running" | "done" | "failed" | "idle";
+  processingState: "queued" | "running" | "done" | "failed" | "skipped" | "idle";
   progressPercent: number | null;
   processingMessage: string | null;
   processingUpdatedAt: string | null;
@@ -212,7 +212,7 @@ export type LogFilters = {
 export type FileHistoryEntry = {
   id: string;
   mediaFileId: string;
-  eventType: "queued" | "started" | "validated" | "completed" | "failed" | "reverted" | "trashed";
+  eventType: "queued" | "started" | "validated" | "completed" | "failed" | "skipped" | "reverted" | "trashed";
   message: string;
   details: string | null;
   sizeBeforeBytes: number | null;

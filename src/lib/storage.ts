@@ -123,7 +123,7 @@ type FilePlanRow = {
   processed_with_warnings: number;
   planned_at: string;
   last_scanned_at: string;
-  processing_state: "queued" | "running" | "done" | "failed" | "idle";
+  processing_state: "queued" | "running" | "done" | "failed" | "skipped" | "idle";
   progress_percent: number | null;
   processing_message: string | null;
   processing_updated_at: string | null;
@@ -143,7 +143,7 @@ type AppLogRow = {
 type FileHistoryRow = {
   id: string;
   media_file_id: string;
-  event_type: "queued" | "started" | "validated" | "completed" | "failed";
+  event_type: FileHistoryEntry["eventType"];
   message: string;
   details: string | null;
   size_before_bytes: number | null;
@@ -818,22 +818,22 @@ export function upsertFiles(files: MediaFileRecord[]): void {
       last_scanned_at = excluded.last_scanned_at,
       processing_state = CASE
         WHEN file_plans.processed_at IS NOT NULL THEN 'done'
-        WHEN file_plans.processing_state IN ('running', 'failed') THEN file_plans.processing_state
+        WHEN file_plans.processing_state IN ('running', 'failed', 'skipped') THEN file_plans.processing_state
         ELSE excluded.processing_state
       END,
       progress_percent = CASE
         WHEN file_plans.processed_at IS NOT NULL THEN 100
-        WHEN file_plans.processing_state IN ('running', 'failed') THEN file_plans.progress_percent
+        WHEN file_plans.processing_state IN ('running', 'failed', 'skipped') THEN file_plans.progress_percent
         ELSE excluded.progress_percent
       END,
       processing_message = CASE
         WHEN file_plans.processed_at IS NOT NULL THEN COALESCE(file_plans.processing_message, 'Processing complete.')
-        WHEN file_plans.processing_state IN ('running', 'failed') THEN file_plans.processing_message
+        WHEN file_plans.processing_state IN ('running', 'failed', 'skipped') THEN file_plans.processing_message
         ELSE excluded.processing_message
       END,
       processing_updated_at = CASE
         WHEN file_plans.processed_at IS NOT NULL THEN COALESCE(file_plans.processing_updated_at, excluded.processing_updated_at)
-        WHEN file_plans.processing_state IN ('running', 'failed') THEN file_plans.processing_updated_at
+        WHEN file_plans.processing_state IN ('running', 'failed', 'skipped') THEN file_plans.processing_updated_at
         ELSE excluded.processing_updated_at
       END
   `);
@@ -1397,7 +1397,7 @@ export function listRecentPlans(limit = 12, processedState: "all" | "processed" 
     processedState === "processed"
       ? "WHERE processed_at IS NOT NULL"
       : processedState === "unprocessed"
-        ? "WHERE processed_at IS NULL AND removable_track_count > 0"
+        ? "WHERE processed_at IS NULL AND removable_track_count > 0 AND processing_state != 'skipped'"
         : "";
 
   const rows = getDb()
@@ -1414,6 +1414,8 @@ function buildQueueWhere(filters: QueueFilters = {}): { whereSql: string; params
   if (filters.status && filters.status !== "all") {
     where.push("processing_state = ?");
     params.push(filters.status);
+  } else {
+    where.push("processing_state != 'skipped'");
   }
 
   if (filters.result && filters.result !== "all") {
@@ -1544,6 +1546,45 @@ export function resetPlansToQueued(mediaFileIds: string[], message = "Queued for
   });
 
   return tx(mediaFileIds);
+}
+
+export function skipFilePlan(mediaFileId: string, message = "Skipped by user"): boolean {
+  const updatedAt = new Date().toISOString();
+  const result = getDb()
+    .prepare(`
+      UPDATE file_plans
+      SET processing_state = 'skipped',
+          progress_percent = NULL,
+          processing_message = ?,
+          processing_updated_at = ?
+      WHERE media_file_id = ?
+        AND processed_at IS NULL
+        AND removable_track_count > 0
+        AND processing_state != 'running'
+        AND processing_state != 'done'
+    `)
+    .run(message, updatedAt, mediaFileId);
+
+  return result.changes > 0;
+}
+
+export function unskipFilePlan(mediaFileId: string, message = "Queued after skip was removed"): boolean {
+  const updatedAt = new Date().toISOString();
+  const result = getDb()
+    .prepare(`
+      UPDATE file_plans
+      SET processing_state = 'queued',
+          progress_percent = 0,
+          processing_message = ?,
+          processing_updated_at = ?
+      WHERE media_file_id = ?
+        AND processed_at IS NULL
+        AND removable_track_count > 0
+        AND processing_state = 'skipped'
+    `)
+    .run(message, updatedAt, mediaFileId);
+
+  return result.changes > 0;
 }
 
 export function writeAppLog(

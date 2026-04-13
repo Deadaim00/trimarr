@@ -5,11 +5,13 @@ import {
   getFailedQueueCount,
   getQueueBatchState,
   getFilePlanById,
+  getNextQueuedMediaFileId,
   getSettings,
   listFailedPlans,
-  listQueuedPlans,
   resetPlansToQueued,
+  skipFilePlan,
   tryStartProcessing,
+  unskipFilePlan,
   writeAppLog,
 } from "@/lib/storage";
 import { processFilePlan } from "@/lib/process";
@@ -17,7 +19,7 @@ import { requestQueueBatchStop, startQueueBatch } from "@/lib/queue-batch";
 
 type ProcessBody = {
   mediaFileId?: string;
-  mode?: "file" | "next" | "retry_failed_all" | "process_all" | "cancel_all";
+  mode?: "file" | "next" | "retry_failed_all" | "process_all" | "cancel_all" | "skip" | "unskip";
 };
 
 export async function POST(request: Request) {
@@ -29,8 +31,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: "Queue processing is already active." }, { status: 409 });
       }
 
-      const hasQueuedWork = listQueuedPlans(1000).some((plan) => plan.processingState === "queued");
-      if (!hasQueuedWork) {
+      if (!getNextQueuedMediaFileId()) {
         return NextResponse.json({ message: "No queued files are ready to process." }, { status: 400 });
       }
 
@@ -75,10 +76,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const mediaFileId =
-      body.mode === "next"
-        ? listQueuedPlans(1000).find((plan) => plan.processingState === "queued")?.mediaFileId
-        : body.mediaFileId;
+    const mediaFileId = body.mode === "next" ? getNextQueuedMediaFileId() : body.mediaFileId;
 
     if (!mediaFileId) {
       return NextResponse.json({ message: "A file id is required." }, { status: 400 });
@@ -87,6 +85,30 @@ export async function POST(request: Request) {
     const plan = getFilePlanById(mediaFileId);
     if (!plan) {
       return NextResponse.json({ message: "File plan not found." }, { status: 404 });
+    }
+
+    if (body.mode === "skip") {
+      if (!skipFilePlan(mediaFileId, "Skipped by user")) {
+        return NextResponse.json({ message: "This file cannot be skipped right now." }, { status: 409 });
+      }
+
+      addFileHistoryEntry(mediaFileId, "skipped", "Skipped from queue", {
+        details: "User marked this file as skipped. It will not be processed unless unskipped or manually processed.",
+      });
+      writeAppLog("info", "queue", `Skipped ${plan.path}`, "User marked the file as skipped.");
+      return NextResponse.json({ message: "File skipped." });
+    }
+
+    if (body.mode === "unskip") {
+      if (!unskipFilePlan(mediaFileId, "Queued after skip was removed")) {
+        return NextResponse.json({ message: "This file is not skipped or cannot be queued." }, { status: 409 });
+      }
+
+      addFileHistoryEntry(mediaFileId, "queued", "Removed skip and queued file", {
+        details: "User removed the skip marker.",
+      });
+      writeAppLog("info", "queue", `Unskipped ${plan.path}`, "User returned the file to the queue.");
+      return NextResponse.json({ message: "File returned to queue." });
     }
 
     if (plan.processingState === "running") {

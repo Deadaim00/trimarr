@@ -804,6 +804,11 @@ textarea {
   color: var(--danger);
 }
 
+.queue-status-skipped {
+  background: rgba(174, 183, 195, 0.12);
+  color: #c0c9d5;
+}
+
 .queue-status-idle {
   background: rgba(174, 183, 195, 0.12);
   color: #c0c9d5;
