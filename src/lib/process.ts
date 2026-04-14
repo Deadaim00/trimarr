@@ -307,7 +307,19 @@ export async function processFilePlan(mediaFileId: string): Promise<void> {
 
   const keepSubtitleTracks = file.tracks.filter((track) => track.decision === "keep");
   const keepSubtitleTrackIndexes = keepSubtitleTracks.map((track) => track.index);
-  const keepAudioTracks = file.audioTracks.filter((track) => track.decision === "keep");
+  let keepAudioTracks = file.audioTracks.filter((track) => track.decision === "keep");
+  let audioRemovedCount = file.audioRemoveCount;
+
+  if (
+    settings.audioProcessingEnabled &&
+    settings.keepSingleAudioTrack &&
+    file.audioTracks.length === 1 &&
+    keepAudioTracks.length === 0
+  ) {
+    keepAudioTracks = file.audioTracks;
+    audioRemovedCount = 0;
+  }
+
   const keepAudioTrackIndexes = keepAudioTracks.map((track) => track.index);
   const { tempPath, backupPath } = workingPaths(file.path);
   const processedAt = new Date().toISOString();
@@ -414,7 +426,7 @@ export async function processFilePlan(mediaFileId: string): Promise<void> {
       file.fileSizeBytes,
       finalStats.size,
       file.subtitleRemoveCount,
-      file.audioRemoveCount,
+      audioRemovedCount,
     );
 
     addFileHistoryEntry(mediaFileId, "validated", "Final file rescan passed", {
