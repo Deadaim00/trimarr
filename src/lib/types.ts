@@ -14,6 +14,7 @@ export type TrimarrSettings = {
   keepEnglishSdhSubtitles: boolean;
   audioProcessingEnabled: boolean;
   keepEnglishAudio: boolean;
+  keepSingleAudioTrack: boolean;
   keepCommentaryAudio: boolean;
   keepUnknownAudio: boolean;
   keepDefaultAudio: boolean;

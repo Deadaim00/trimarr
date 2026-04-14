@@ -97,7 +97,7 @@ function classifySubtitleTrack(stream: ProbeStream, path: string): SubtitleTrack
   };
 }
 
-function classifyAudioTrack(stream: ProbeStream, path: string): AudioTrack | null {
+function classifyAudioTrack(stream: ProbeStream, path: string, totalAudioTracks: number): AudioTrack | null {
   if (stream.codec_type !== "audio") {
     return null;
   }
@@ -114,6 +114,9 @@ function classifyAudioTrack(stream: ProbeStream, path: string): AudioTrack | nul
   if (!settings.audioProcessingEnabled) {
     decision = "keep";
     reason = "Audio processing is disabled.";
+  } else if (totalAudioTracks === 1 && settings.keepSingleAudioTrack) {
+    decision = "keep";
+    reason = "Keep the only audio track for safety.";
   } else if (commentary && !settings.keepCommentaryAudio) {
     decision = "remove";
     reason = "Commentary audio is disabled in the current keep policy.";
@@ -176,8 +179,9 @@ export async function inspectMediaFile(path: string): Promise<MediaFileRecord> {
   const tracks = streams
     .map((stream) => classifySubtitleTrack(stream, path))
     .filter((track): track is SubtitleTrack => Boolean(track));
-  const audioTracks = streams
-    .map((stream) => classifyAudioTrack(stream, path))
+  const audioStreams = streams.filter((stream) => stream.codec_type === "audio");
+  const audioTracks = audioStreams
+    .map((stream) => classifyAudioTrack(stream, path, audioStreams.length))
     .filter((track): track is AudioTrack => Boolean(track));
   const subtitleKeepCount = tracks.filter((track) => track.decision === "keep").length;
   const subtitleRemoveCount = tracks.filter((track) => track.decision === "remove").length;

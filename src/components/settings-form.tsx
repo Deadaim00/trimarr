@@ -21,6 +21,7 @@ export function SettingsForm({ settings }: { settings: TrimarrSettings }) {
   const [keepEnglishSdhSubtitles, setKeepEnglishSdhSubtitles] = useState(settings.keepEnglishSdhSubtitles);
   const [audioProcessingEnabled, setAudioProcessingEnabled] = useState(settings.audioProcessingEnabled);
   const [keepEnglishAudio, setKeepEnglishAudio] = useState(settings.keepEnglishAudio);
+  const [keepSingleAudioTrack, setKeepSingleAudioTrack] = useState(settings.keepSingleAudioTrack);
   const [keepCommentaryAudio, setKeepCommentaryAudio] = useState(settings.keepCommentaryAudio);
   const [keepUnknownAudio, setKeepUnknownAudio] = useState(settings.keepUnknownAudio);
   const [keepDefaultAudio, setKeepDefaultAudio] = useState(settings.keepDefaultAudio);
@@ -117,6 +118,7 @@ export function SettingsForm({ settings }: { settings: TrimarrSettings }) {
           keepEnglishSdhSubtitles,
           audioProcessingEnabled,
           keepEnglishAudio,
+          keepSingleAudioTrack,
           keepCommentaryAudio,
           keepUnknownAudio,
           keepDefaultAudio,
@@ -340,6 +342,22 @@ export function SettingsForm({ settings }: { settings: TrimarrSettings }) {
             <div className={clsx("settings-copy", !audioProcessingEnabled && "settings-copy-disabled")}>
               <strong>English audio</strong>
               <span>Keep English-language audio tracks.</span>
+            </div>
+          </label>
+
+          <label className="settings-row settings-toggle-setting">
+            <span className="settings-switch">
+              <input
+                type="checkbox"
+                checked={keepSingleAudioTrack}
+                disabled={!audioProcessingEnabled}
+                onChange={(event) => setKeepSingleAudioTrack(event.target.checked)}
+              />
+              <span className="settings-switch-ui" aria-hidden="true" />
+            </span>
+            <div className={clsx("settings-copy", !audioProcessingEnabled && "settings-copy-disabled")}>
+              <strong>Only audio track</strong>
+              <span>Always keep the only audio track so subtitle cleanup can still run when language metadata is wrong.</span>
             </div>
           </label>
 

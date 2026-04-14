@@ -14,6 +14,7 @@ type SettingsBody = {
   keepEnglishSdhSubtitles?: boolean;
   audioProcessingEnabled?: boolean;
   keepEnglishAudio?: boolean;
+  keepSingleAudioTrack?: boolean;
   keepCommentaryAudio?: boolean;
   keepUnknownAudio?: boolean;
   keepDefaultAudio?: boolean;
@@ -93,6 +94,7 @@ export async function POST(request: Request) {
       keepEnglishSdhSubtitles: body.keepEnglishSdhSubtitles ?? current.keepEnglishSdhSubtitles,
       audioProcessingEnabled: body.audioProcessingEnabled ?? current.audioProcessingEnabled,
       keepEnglishAudio: body.keepEnglishAudio ?? current.keepEnglishAudio,
+      keepSingleAudioTrack: body.keepSingleAudioTrack ?? current.keepSingleAudioTrack,
       keepCommentaryAudio: body.keepCommentaryAudio ?? current.keepCommentaryAudio,
       keepUnknownAudio: body.keepUnknownAudio ?? current.keepUnknownAudio,
       keepDefaultAudio: body.keepDefaultAudio ?? current.keepDefaultAudio,
@@ -133,6 +135,7 @@ export async function POST(request: Request) {
         keepEnglishSdhSubtitles: saved.keepEnglishSdhSubtitles,
         audioProcessingEnabled: saved.audioProcessingEnabled,
         keepEnglishAudio: saved.keepEnglishAudio,
+        keepSingleAudioTrack: saved.keepSingleAudioTrack,
         keepCommentaryAudio: saved.keepCommentaryAudio,
         keepUnknownAudio: saved.keepUnknownAudio,
         keepDefaultAudio: saved.keepDefaultAudio,

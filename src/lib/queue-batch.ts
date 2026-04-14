@@ -8,7 +8,11 @@ import {
   tryStartProcessing,
   writeAppLog,
 } from "@/lib/storage";
-import { isWithinConfiguredSchedulerWindow, resolveSchedulerTimeZone } from "@/lib/scheduler-window";
+import {
+  hasReachedConfiguredSchedulerEndSince,
+  isWithinConfiguredSchedulerWindow,
+  resolveSchedulerTimeZone,
+} from "@/lib/scheduler-window";
 
 let queueBatchInFlight = false;
 
@@ -73,6 +77,35 @@ async function runQueueBatch(source: "manual" | "scheduler" | "webhook"): Promis
     const state = getQueueBatchState();
     const settings = getSettings();
     const maxConcurrentJobs = Math.min(4, Math.max(1, settings.maxConcurrentJobs || 1));
+
+    if (source !== "manual" && hasReachedConfiguredSchedulerEndSince(settings, state.startedAt)) {
+      if (activeJobs.size > 0) {
+        setQueueBatchState({
+          status: "stopping",
+          source,
+          startedAt: state.startedAt ?? nowIso(),
+          updatedAt: nowIso(),
+          message: `Scheduler end time reached. Waiting for ${activeProcessorLabel(activeJobs.size)} to finish.`,
+        });
+        await Promise.race(activeJobs.values());
+        continue;
+      }
+
+      setQueueBatchState({
+        status: "idle",
+        source,
+        startedAt: null,
+        updatedAt: nowIso(),
+        message: processed > 0 ? `Stopped at scheduler end time after ${processed} file(s).` : "Scheduler end time reached.",
+      });
+      writeAppLog(
+        "info",
+        "queue",
+        "Automatic queue batch stopped at scheduler end time",
+        `Source: ${source}. End time ${settings.scheduleEndAt} reached. Processed ${processed} file(s).`,
+      );
+      return;
+    }
 
     if (source === "scheduler") {
       const timeZone = resolveSchedulerTimeZone(settings.scheduleTimeZone);

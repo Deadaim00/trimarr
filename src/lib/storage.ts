@@ -422,6 +422,7 @@ function seedDefaultSettings(db: BetterSqlite3.Database): void {
   insert.run("keepEnglishSdhSubtitles", DEFAULT_SETTINGS.keepEnglishSdhSubtitles ? "1" : "0");
   insert.run("audioProcessingEnabled", DEFAULT_SETTINGS.audioProcessingEnabled ? "1" : "0");
   insert.run("keepEnglishAudio", DEFAULT_SETTINGS.keepEnglishAudio ? "1" : "0");
+  insert.run("keepSingleAudioTrack", DEFAULT_SETTINGS.keepSingleAudioTrack ? "1" : "0");
   insert.run("keepCommentaryAudio", DEFAULT_SETTINGS.keepCommentaryAudio ? "1" : "0");
   insert.run("keepUnknownAudio", DEFAULT_SETTINGS.keepUnknownAudio ? "1" : "0");
   insert.run("keepDefaultAudio", DEFAULT_SETTINGS.keepDefaultAudio ? "1" : "0");
@@ -641,6 +642,7 @@ export function getSettings(): TrimarrSettings {
     keepEnglishSdhSubtitles: map.get("keepEnglishSdhSubtitles") !== "0" || map.get("keepEnglishSdh") !== "0",
     audioProcessingEnabled: map.get("audioProcessingEnabled") !== "0",
     keepEnglishAudio: map.get("keepEnglishAudio") !== "0",
+    keepSingleAudioTrack: map.get("keepSingleAudioTrack") !== "0",
     keepCommentaryAudio: map.get("keepCommentaryAudio") !== "0",
     keepUnknownAudio: map.get("keepUnknownAudio") !== "0",
     keepDefaultAudio: map.get("keepDefaultAudio") !== "0",
@@ -676,6 +678,7 @@ export function saveSettings(settings: TrimarrSettings): TrimarrSettings {
     insert.run("keepEnglishSdhSubtitles", next.keepEnglishSdhSubtitles ? "1" : "0");
     insert.run("audioProcessingEnabled", next.audioProcessingEnabled ? "1" : "0");
     insert.run("keepEnglishAudio", next.keepEnglishAudio ? "1" : "0");
+    insert.run("keepSingleAudioTrack", next.keepSingleAudioTrack ? "1" : "0");
     insert.run("keepCommentaryAudio", next.keepCommentaryAudio ? "1" : "0");
     insert.run("keepUnknownAudio", next.keepUnknownAudio ? "1" : "0");
     insert.run("keepDefaultAudio", next.keepDefaultAudio ? "1" : "0");

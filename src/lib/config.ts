@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: TrimarrSettings = {
   keepEnglishSdhSubtitles: true,
   audioProcessingEnabled: true,
   keepEnglishAudio: true,
+  keepSingleAudioTrack: true,
   keepCommentaryAudio: true,
   keepUnknownAudio: true,
   keepDefaultAudio: true,
